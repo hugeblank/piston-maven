@@ -1,5 +1,6 @@
 import express from 'express'
 import * as z from 'zod'
+import * as crypto from 'crypto'
 
 
 const app = express()
@@ -82,7 +83,7 @@ function getVersion(manifest: Manifest, version: string): Version|null {
 }
 
 function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
-    let xml = `<manifest><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><versioning><latest>${manifest.latest.snapshot}</latest><release>${manifest.latest.release}</release><versions>`
+    let xml = `<?xml version="1.0" encoding="UTF-8"?><manifest><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><versioning><latest>${manifest.latest.snapshot}</latest><release>${manifest.latest.release}</release><versions>`
     for (const version of manifest.versions) {
         // TODO: VersionIndexes at and before this version might not have a `artifact` block, breaking the version index to pom xml logic. Fix it.
         if (version.id === "1.12.2") break;
@@ -98,8 +99,8 @@ function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
 }
 
 function versionIndexToPom(versionIndex: VersionIndex, envtype: "client" | "server") {
-    let xml = `<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><modelVersion>4.0.0</modelVersion>`
-    xml += `<groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><version>${versionIndex.id}</version><dependencies>`
+    let xml = `<?xml version="1.0" encoding="UTF-8"?><project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><modelVersion>4.0.0</modelVersion>`
+    xml += `<groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><version>${versionIndex.id}</version><packaging>pom</packaging><dependencies>`
     let i = 0;
     for (const library of versionIndex.libraries) {
         const gav = library.name.split(":")
@@ -114,18 +115,39 @@ async function getVersionIndex(version: Version) {
     return await versionIndexType.parseAsync(await (await fetch(version.url)).json())
 }
 
-app.get('/net/minecraft/:envtype/maven-metadata.xml', async (req, res) => {
-    if (req.params.envtype === "client" || req.params.envtype === "server") {
-        res.set('Content-Type', 'text/xml');
-        res.send(manifestToXML(await manifestCache.get(), req.params.envtype))
-    } else {
-        res.sendStatus(404).send("Not found")
+function notFound(req: any, res: any) {
+    res.sendStatus(404)
+    if (req.method !== "HEAD") {
+        res.send("Not found")
     }
+}
+
+app.all(/.*/, (req, res, next) => {
+    console.log(req.method, req.path)
+    next()
+    console.log("response", req.method, req.path, res.statusCode)
+})
+
+app.all('/net/minecraft/:envtype/maven-metadata.xml', async (req, res) => {
+    if (req.params.envtype === "client" || req.params.envtype === "server") {
+        const xml = manifestToXML(await manifestCache.get(), req.params.envtype)
+
+        res.set('Content-Type', 'application/xml');
+        res.setHeader("Content-Length", xml.length)
+        if (req.method === "HEAD") {
+            res.send()
+            return
+        } else if (req.method === "GET") {
+            res.send(xml)
+            return
+        }
+    }
+    notFound(req, res)
 })
 
 app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
     if (!(req.params.envtype === "client" || req.params.envtype === "server")) {
-        res.sendStatus(404).send("Not found")
+        notFound(req, res)
         return;
     }
 
@@ -135,30 +157,57 @@ app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
     } else {
         const version = getVersion(await manifestCache.get(), req.params.version)
         if (version === null) {
-            res.status(404).send("Not Found")
+            notFound(req, res)
             return
         }
         versionIndex = await getVersionIndex(version)
         versionIndexCache.set(version.id, versionIndex)
     }
 
-    if (`${req.params.envtype}-${req.params.version}.jar` === req.params.file) {
-        const url = versionIndex.downloads[req.params.envtype]?.url
+    const name = `${req.params.envtype}-${req.params.version}`
+    const download = versionIndex.downloads[req.params.envtype]
+
+    if (`${name}.jar` === req.params.file) {
+        const url = download?.url
         if (!url) {
-            res.status(404).send("Not Found")
+            notFound(req, res)
             return
         }
         res.redirect(url)
-    } else if (`${req.params.envtype}-${req.params.version}.pom` === req.params.file) {
-        res.set('Content-Type', 'text/xml');
-        res.send(versionIndexToPom(versionIndex, req.params.envtype))
+        return
     }
+
+    const pom = versionIndexToPom(versionIndex, req.params.envtype)
+    if (`${name}.pom` === req.params.file) {
+        res.set('Content-Type', 'application/xml');
+        res.setHeader("Content-Length", pom.length)
+        if (req.method === "HEAD") {
+            res.send()
+            return
+        } else if (req.method === "GET") {
+            res.send(pom)
+            return
+        }
+    } else if (`${name}.pom.sha1` === req.params.file) {
+        const pomsha = crypto.createHash('sha1').update(pom).digest("hex")
+        res.set('Content-Type', 'application/octet-stream');
+        res.setHeader("Content-Length", pomsha.length)
+        if (req.method === "HEAD") {
+            res.send()
+            return
+        } else if (req.method === "GET") {
+            res.send(pomsha)
+            return
+        }
+    }
+    notFound(req, res)
 })
 
 app.get(/.*/, (req, res) => {
-  res.redirect("https://libraries.minecraft.net" + req.path)
+    console.log("redirecting", req.path)
+    res.redirect("https://libraries.minecraft.net" + req.path)
 })
 
 app.listen(3000, () => {
-  console.log('Server is running on http://localhost:3000')
+    console.log('Server is running on http://localhost:3000')
 })
