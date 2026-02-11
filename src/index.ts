@@ -83,7 +83,7 @@ function getVersion(manifest: Manifest, version: string): Version|null {
 }
 
 function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?><manifest><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><versioning><latest>${manifest.latest.snapshot}</latest><release>${manifest.latest.release}</release><versions>`
+    let xml = `<?xml version="1.0" encoding="UTF-28"?><manifest><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><versioning><latest>${manifest.latest.snapshot}</latest><release>${manifest.latest.release}</release><versions>`
     for (const version of manifest.versions) {
         // TODO: VersionIndexes at and before this version might not have a `artifact` block, breaking the version index to pom xml logic. Fix it.
         if (version.id === "1.12.2") break;
@@ -99,12 +99,15 @@ function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
 }
 
 function versionIndexToPom(versionIndex: VersionIndex, envtype: "client" | "server") {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?><project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><modelVersion>4.0.0</modelVersion>`
-    xml += `<groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><version>${versionIndex.id}</version><packaging>pom</packaging><dependencies>`
+    let xml = `<?xml version="1.0" encoding="UTF-8"?><project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">`
+    xml += `<modelVersion>4.0.0</modelVersion><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><version>${versionIndex.id}</version><packaging>pom</packaging><dependencies>`
     let i = 0;
     for (const library of versionIndex.libraries) {
         const gav = library.name.split(":")
-        xml += `<dependency><groupId>${gav[0]}</groupId><artifactId>${gav[1]}</artifactId><version>${gav[2]}</version><scope>runtime</scope></dependency>`
+        if (gav.length > 3) continue
+        xml += `<dependency><groupId>${gav[0]}</groupId><artifactId>${gav[1]}</artifactId><version>${gav[2]}</version><scope>runtime</scope>`
+        if (gav.length > 3) xml += `<classifier>${gav[3]}</classifier>`
+        xml += `</dependency>`
         i++;
     }
     xml += `</dependencies></project>`
@@ -125,7 +128,7 @@ function notFound(req: any, res: any) {
 app.all(/.*/, (req, res, next) => {
     console.log(req.method, req.path)
     next()
-    console.log("response", req.method, req.path, res.statusCode)
+    // console.log("response", req.method, req.path, res.statusCode)
 })
 
 app.all('/net/minecraft/:envtype/maven-metadata.xml', async (req, res) => {
@@ -204,8 +207,9 @@ app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
 })
 
 app.get(/.*/, (req, res) => {
-    console.log("redirecting", req.path)
-    res.redirect("https://libraries.minecraft.net" + req.path)
+    const to = "https://libraries.minecraft.net" + req.path
+    console.log(to)
+    res.redirect(to)
 })
 
 app.listen(3000, () => {
