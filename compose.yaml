@@ -6,4 +6,4 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - 12000:3000
+      - 5000:3000
