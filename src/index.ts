@@ -100,11 +100,11 @@ function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
 
 function versionIndexToPom(versionIndex: VersionIndex, envtype: "client" | "server") {
     let xml = `<?xml version="1.0" encoding="UTF-8"?><project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">`
-    xml += `<modelVersion>4.0.0</modelVersion><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><version>${versionIndex.id}</version><packaging>pom</packaging><dependencies>`
+    xml += `<modelVersion>4.0.0</modelVersion><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><version>${versionIndex.id}</version><dependencies>`
     let i = 0;
     for (const library of versionIndex.libraries) {
         const gav = library.name.split(":")
-        if (gav.length > 3) continue
+        // if (gav.length > 3) continue
         xml += `<dependency><groupId>${gav[0]}</groupId><artifactId>${gav[1]}</artifactId><version>${gav[2]}</version><scope>runtime</scope>`
         if (gav.length > 3) xml += `<classifier>${gav[3]}</classifier>`
         xml += `</dependency>`
