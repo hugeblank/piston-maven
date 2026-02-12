@@ -1,0 +1,9 @@
+services:
+  piston-maven:
+    pull_policy: build
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - 12000:3000

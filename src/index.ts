@@ -83,7 +83,7 @@ function getVersion(manifest: Manifest, version: string): Version|null {
 }
 
 function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
-    let xml = `<?xml version="1.0" encoding="UTF-28"?><manifest><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><versioning><latest>${manifest.latest.snapshot}</latest><release>${manifest.latest.release}</release><versions>`
+    let xml = `<?xml version="1.0" encoding="UTF-8"?><manifest><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><versioning><latest>${manifest.latest.snapshot}</latest><release>${manifest.latest.release}</release><versions>`
     for (const version of manifest.versions) {
         // TODO: VersionIndexes at and before this version might not have a `artifact` block, breaking the version index to pom xml logic. Fix it.
         if (version.id === "1.12.2") break;
