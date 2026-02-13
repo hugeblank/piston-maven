@@ -83,34 +83,34 @@ function getVersion(manifest: Manifest, version: string): Version|null {
 }
 
 function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?><manifest><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><versioning><latest>${manifest.latest.snapshot}</latest><release>${manifest.latest.release}</release><versions>`
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<manifest>\n\t<groupId>net.minecraft</groupId>\n\t<artifactId>${envtype}</artifactId>\n\t<versioning>\n\t\t<latest>${manifest.latest.snapshot}</latest>\n\t\t<release>${manifest.latest.release}</release>\n\t\t<versions>`
     for (const version of manifest.versions) {
         // TODO: VersionIndexes at and before this version might not have a `artifact` block, breaking the version index to pom xml logic. Fix it.
         if (version.id === "1.12.2") break;
         // 1.2.5 & earlier do not have a server
         if (version.id === "1.2.4" && envtype === "server") break;
-        xml += `<version>${version.id}</version>`
+        xml += `\n\t\t\t<version>${version.id}</version>`
     }
-    xml += "</versions>"
+    xml += "\n\t\t</versions>"
     const latest = getVersion(manifest, manifest.latest.snapshot)!.releaseTime
-    xml += `<lastUpdated>${latest.getFullYear()}${latest.getMonth()}${latest.getDay()}${latest.getHours()}${latest.getMinutes()}${latest.getSeconds()}</lastUpdated>`
-    xml += "</versioning></manifest>"
+    xml += `\n\t\t<lastUpdated>${latest.getFullYear()}${latest.getMonth()}${latest.getDay()}${latest.getHours()}${latest.getMinutes()}${latest.getSeconds()}</lastUpdated>`
+    xml += "\n\t</versioning>\n</manifest>"
     return xml
 }
 
 function versionIndexToPom(versionIndex: VersionIndex, envtype: "client" | "server") {
-    let xml = `<?xml version="1.0" encoding="UTF-8"?><project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">`
-    xml += `<modelVersion>4.0.0</modelVersion><groupId>net.minecraft</groupId><artifactId>${envtype}</artifactId><version>${versionIndex.id}</version><dependencies>`
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">\n\t`
+    xml += `<modelVersion>4.0.0</modelVersion>\n\t<groupId>net.minecraft</groupId>\n\t<artifactId>${envtype}</artifactId>\n\t<version>${versionIndex.id}</version>\n\t<dependencies>\n`
     let i = 0;
     for (const library of versionIndex.libraries) {
         const gav = library.name.split(":")
         // if (gav.length > 3) continue
-        xml += `<dependency><groupId>${gav[0]}</groupId><artifactId>${gav[1]}</artifactId><version>${gav[2]}</version><scope>runtime</scope>`
-        if (gav.length > 3) xml += `<classifier>${gav[3]}</classifier>`
-        xml += `</dependency>`
+        xml += `\t\t<dependency>\n\t\t\t<groupId>${gav[0]}</groupId>\n\t\t\t<artifactId>${gav[1]}</artifactId>\n\t\t\t<version>${gav[2]}</version>\n\t\t\t<scope>runtime</scope>\n`
+        if (gav.length > 3) xml += `\t\t\t<classifier>${gav[3]}</classifier>\n`
+        xml += `\t\t</dependency>\n`
         i++;
     }
-    xml += `</dependencies></project>`
+    xml += `\t</dependencies>\n</project>\n`
     return xml
 }
 
@@ -182,7 +182,7 @@ app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
 
     const pom = versionIndexToPom(versionIndex, req.params.envtype)
     if (`${name}.pom` === req.params.file) {
-        res.set('Content-Type', 'application/xml');
+        res.set('Content-Type', 'application/octet-stream');
         res.setHeader("Content-Length", pom.length)
         if (req.method === "HEAD") {
             res.send()
