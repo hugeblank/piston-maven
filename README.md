@@ -1,6 +1,6 @@
 # Piston Maven
 
-Spoof maven repository backed by minecraft.net's launcher version manifest data. Reverse engineers game client/server and libraries into a maven POM for easy acquisition in IDE.
+Spoof maven repository backed by minecraft.net's launcher version manifest data. Reverse engineers release (and snapshot) client, server, and their respective libraries into a maven POM for easy acquisition in IDE.
 
 Note that piston-maven is most useful for version 26.1 and onward, where the game is no longer obfuscated.
 
