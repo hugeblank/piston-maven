@@ -85,9 +85,7 @@ function getVersion(manifest: Manifest, version: string): Version|null {
 function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<manifest>\n\t<groupId>net.minecraft</groupId>\n\t<artifactId>${envtype}</artifactId>\n\t<versioning>\n\t\t<latest>${manifest.latest.snapshot}</latest>\n\t\t<release>${manifest.latest.release}</release>\n\t\t<versions>`
     for (const version of manifest.versions) {
-        // TODO: VersionIndexes at and before this version might not have a `artifact` block, breaking the version index to pom xml logic. Fix it.
-        if (version.id === "1.7.10") break;
-        // 1.2.5 & earlier do not have a server
+        // 1.2.4 & earlier do not have a server
         if (version.id === "1.2.4" && envtype === "server") break;
         xml += `\n\t\t\t<version>${version.id}</version>`
     }
@@ -104,6 +102,10 @@ function versionIndexToPom(versionIndex: VersionIndex, envtype: "client" | "serv
     let i = 0;
     for (const library of versionIndex.libraries) {
         const gav = library.name.split(":")
+        
+        // Every version after 1.7.3 has these stupid broken versions of LWJGL, AND a correct version (2.9.0). Mojang my beloved, pls fix. 
+        if (gav[2].includes("2.9.1-nightly-20130708-debug3") || gav[2].includes("2.9.1-nightly-20131017")) continue; // skip.
+
         xml += `\t\t<dependency>\n\t\t\t<groupId>${gav[0]}</groupId>\n\t\t\t<artifactId>${gav[1]}</artifactId>\n\t\t\t<version>${gav[2]}</version>\n\t\t\t<scope>runtime</scope>\n`
         if (library.downloads.classifiers === undefined) {
             if (gav.length > 3) xml += `\t\t\t<classifier>${gav[3]}</classifier>\n`
@@ -204,7 +206,7 @@ app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
     }
     res.sendStatus(404)
 })
-    
+
 app.get(/.*/, async (req, res) => {
     console.log(req.method, req.path)
     res.redirect("https://libraries.minecraft.net" + req.path)

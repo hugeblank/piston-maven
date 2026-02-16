@@ -16,9 +16,9 @@ repositories {
 }
 
 dependencies {
-    // Any version from latest - 1.8 Supported
+    // All versions of the game are supported
     implementation("net.minecraft:client:1.8")
-    // Obtaining the server is also supported.
+    // Obtaining the server is also supported. (Note: Versions prior to 1.2.5 do not have a server version.)
     implementation("net.minecraft:server:1.8")
 }
 ```
