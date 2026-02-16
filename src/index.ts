@@ -38,9 +38,7 @@ const versionIndexType = z.object({
     libraries: z.array(z.object({
         name: z.string(),
         downloads: z.object({
-            artifact: downloadType.extend({
-                path: z.string()
-            }),
+            classifiers: z.optional(z.record(z.string(), downloadType))
         })
     }))
 })
@@ -56,12 +54,14 @@ const versionIndexCache: Map<string, VersionIndex> = new Map()
 class ManifestCache {
     private manifest: Manifest|null = null;
 
-    public ManifestCache() { }
+    constructor() {
+    
+    }
     
     public async get() {
         if (this.manifest === null) {
             this.manifest = await manifestType.parseAsync(await (await fetch("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")).json())
-            setTimeout(this.clear, 1000)
+            setTimeout(this.clear, 1000*60*5)
         }
         return this.manifest
     }
@@ -86,7 +86,7 @@ function manifestToXML(manifest: Manifest, envtype: "client" | "server") {
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<manifest>\n\t<groupId>net.minecraft</groupId>\n\t<artifactId>${envtype}</artifactId>\n\t<versioning>\n\t\t<latest>${manifest.latest.snapshot}</latest>\n\t\t<release>${manifest.latest.release}</release>\n\t\t<versions>`
     for (const version of manifest.versions) {
         // TODO: VersionIndexes at and before this version might not have a `artifact` block, breaking the version index to pom xml logic. Fix it.
-        if (version.id === "1.12.2") break;
+        if (version.id === "1.7.10") break;
         // 1.2.5 & earlier do not have a server
         if (version.id === "1.2.4" && envtype === "server") break;
         xml += `\n\t\t\t<version>${version.id}</version>`
@@ -104,9 +104,14 @@ function versionIndexToPom(versionIndex: VersionIndex, envtype: "client" | "serv
     let i = 0;
     for (const library of versionIndex.libraries) {
         const gav = library.name.split(":")
-        // if (gav.length > 3) continue
         xml += `\t\t<dependency>\n\t\t\t<groupId>${gav[0]}</groupId>\n\t\t\t<artifactId>${gav[1]}</artifactId>\n\t\t\t<version>${gav[2]}</version>\n\t\t\t<scope>runtime</scope>\n`
-        if (gav.length > 3) xml += `\t\t\t<classifier>${gav[3]}</classifier>\n`
+        if (library.downloads.classifiers === undefined) {
+            if (gav.length > 3) xml += `\t\t\t<classifier>${gav[3]}</classifier>\n`
+        } else {
+            for (const [key, _] of Object.entries(library.downloads.classifiers)) {
+                xml += `\t\t\t<classifier>${key}</classifier>\n`
+            }
+        }
         xml += `\t\t</dependency>\n`
         i++;
     }
@@ -118,20 +123,8 @@ async function getVersionIndex(version: Version) {
     return await versionIndexType.parseAsync(await (await fetch(version.url)).json())
 }
 
-function notFound(req: any, res: any) {
-    res.sendStatus(404)
-    if (req.method !== "HEAD") {
-        res.send("Not found")
-    }
-}
-
-app.all(/.*/, (req, res, next) => {
-    console.log(req.method, req.path)
-    next()
-    // console.log("response", req.method, req.path, res.statusCode)
-})
-
 app.all('/net/minecraft/:envtype/maven-metadata.xml', async (req, res) => {
+    console.log(req.method, req.path)
     if (req.params.envtype === "client" || req.params.envtype === "server") {
         const xml = manifestToXML(await manifestCache.get(), req.params.envtype)
 
@@ -145,12 +138,18 @@ app.all('/net/minecraft/:envtype/maven-metadata.xml', async (req, res) => {
             return
         }
     }
-    notFound(req, res)
+    res.sendStatus(404)
 })
 
 app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
+    console.log(req.method, req.path)
+    if (req.params.envtype === "launchwrapper") {
+        res.redirect("https://libraries.minecraft.net" + req.path)
+        return
+    }
+
     if (!(req.params.envtype === "client" || req.params.envtype === "server")) {
-        notFound(req, res)
+        res.sendStatus(404)
         return;
     }
 
@@ -160,7 +159,7 @@ app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
     } else {
         const version = getVersion(await manifestCache.get(), req.params.version)
         if (version === null) {
-            notFound(req, res)
+            res.sendStatus(404)
             return
         }
         versionIndex = await getVersionIndex(version)
@@ -173,7 +172,7 @@ app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
     if (`${name}.jar` === req.params.file) {
         const url = download?.url
         if (!url) {
-            notFound(req, res)
+            res.sendStatus(404)
             return
         }
         res.redirect(url)
@@ -203,13 +202,12 @@ app.get('/net/minecraft/:envtype/:version/:file', async (req, res) => {
             return
         }
     }
-    notFound(req, res)
+    res.sendStatus(404)
 })
-
-app.get(/.*/, (req, res) => {
-    const to = "https://libraries.minecraft.net" + req.path
-    console.log(to)
-    res.redirect(to)
+    
+app.get(/.*/, async (req, res) => {
+    console.log(req.method, req.path)
+    res.redirect("https://libraries.minecraft.net" + req.path)
 })
 
 app.listen(3000, () => {
