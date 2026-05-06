@@ -11,7 +11,7 @@ Note that piston-maven is most useful for version 26.1 and onward, where the gam
 In your `build.gradle.kts`:
 ```kotlin
 repositories {
-    maven("https://piston-maven.hugeblank.dev")
+    maven("https://piston-maven.moongarden.dev")
     mavenCentral()
 }
 
